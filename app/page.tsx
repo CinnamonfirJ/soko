@@ -201,6 +201,16 @@ export default function Landing() {
                 </Reveal>
               ))}
             </div>
+            <Reveal delay={0.2}>
+              <div className="mt-6">
+                <div className="text-[13px] text-ink-2">Type <span className="font-mono text-coral">/menu</span> in the chat to see everything Soko can do:</div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {["/send", "/quote 500 to Zimbabwe", "/again", "/track", "/history", "/rates", "/routes", "/recipients", "/support"].map((c) => (
+                    <span key={c} className="chip !h-8 !border-ok/25 !text-[12px] !text-ink">{c}</span>
+                  ))}
+                </div>
+              </div>
+            </Reveal>
             <p className="mt-5 flex items-center gap-2 text-[12.5px] text-ink-3"><Lock className="h-3.5 w-3.5 text-ok" /> Payments are always confirmed on SokoBot's secure page. Soko will never ask for your PIN or password in WhatsApp.</p>
           </div>
           <Reveal delay={0.1}><WhatsAppDemo /></Reveal>

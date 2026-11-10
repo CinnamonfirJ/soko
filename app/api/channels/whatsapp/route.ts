@@ -3,11 +3,12 @@ import { interpret, type Draft } from "@/lib/intent";
 import { findCorridor, isTransactable } from "@/lib/corridors";
 import { safeEqual, velocityOk } from "@/lib/security";
 import { countryFromPhone, formatReply, signDraftLink, WHATSAPP_SECRET } from "@/lib/whatsapp";
+import { runCommand } from "@/lib/whatsapp-commands";
 
 /**
  * Inbound WhatsApp messages, forwarded by the orchestration layer (n8n) from an approved WhatsApp Business provider.
  *
- * Request:  POST { from: "+27821234567", text: "send R500 to my brother in Harare", draft?: {...} }
+ * Request:  POST { from: "+27821234567", text: "send R500 to my brother in Harare" | "/menu" | "/track SK-…", draft?: {...} }
  *           header x-soko-channel-secret: SOKO_WHATSAPP_SECRET
  * Response: { reply: string, draft, link?, ready }
  *
@@ -24,11 +25,16 @@ export async function POST(req: Request) {
   if (!from || !text) return NextResponse.json({ error: "from and text are required." }, { status: 422 });
   if (!velocityOk("wa:" + from, 20, 60_000)) return NextResponse.json({ reply: "You're sending messages quickly. Give me a moment and try again." });
 
+  const origin = process.env.SOKO_PUBLIC_URL || new URL(req.url).origin;
+
+  // Slash commands (/menu, /send, /quote, /track, …) and greetings are answered directly.
+  const cmd = await runCommand(text, { from, origin, country: countryFromPhone(from) });
+  if (cmd) return NextResponse.json({ reply: cmd.reply, link: cmd.link, draft: body.draft ?? {}, ready: !!cmd.link, command: true });
+
   const reply = await interpret(text, body.draft ?? {}, countryFromPhone(from));
   const d = reply.draft;
   const corridor = d.sourceCountry && d.destinationCountry ? findCorridor(d.sourceCountry, d.destinationCountry) : undefined;
   const ready = reply.intent !== "STATUS" && reply.intent !== "HELP" && isTransactable(corridor) && !!d.destinationCountry;
-  const origin = process.env.SOKO_PUBLIC_URL || new URL(req.url).origin;
   const link = ready ? `${origin}/app/send?wa=${signDraftLink(d, from)}` : undefined;
 
   return NextResponse.json({ reply: formatReply(reply, link), draft: d, link, ready, missing: reply.missing });

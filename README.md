@@ -33,6 +33,27 @@ Most of our users already live in WhatsApp, so SokoBot works there too:
 4. The user checks the live rate and fees and confirms on SokoBot's secure page. Saying "yes" in WhatsApp never authorizes a payment.
 5. Status updates (payment received, money on the way, money delivered) come back in the same chat.
 
+### WhatsApp commands
+
+Send `/menu` (or just say hi) to see everything. Free text like *"send R500 to my brother Tendai in Harare"* always works too.
+
+| Command | What it does |
+|---|---|
+| `/send` | Start a transfer and get a secure link to fill it in |
+| `/send 2` | Send to saved recipient #2 from `/recipients` |
+| `/quote 500 to Zimbabwe` | A live quote: amount received, every fee, total to pay and rate |
+| `/again` | Repeat your last transfer at today's rate |
+| `/recipients` | Your saved people, numbered |
+| `/track SK-XXXX-XXXX` | Step-by-step status of a transfer (your latest one if no reference) |
+| `/history` | Your last five transfers |
+| `/rates` | Today's rates from your country |
+| `/routes` | Where you can send, and how each recipient gets paid |
+| `/limits` | How much you can send per transfer |
+| `/support` | Get help, with your reference |
+| `/safety` | How Soko keeps your money safe |
+
+Your WhatsApp number is matched to the Soko account with the same verified phone number, so `/track`, `/history`, `/again` and `/recipients` only ever show your own transfers. No command moves money: each one replies with information or a secure link, and you confirm payments on Soko's secure page.
+
 How it connects: an approved WhatsApp Business provider forwards messages through **n8n** to `POST /api/channels/whatsapp`. SokoBot returns the reply text, the updated draft, and the secure link. Links are HMAC-signed, carry only the draft (never payment details), and expire after 30 minutes.
 
 ```bash
