@@ -1,5 +1,6 @@
 import "server-only";
-import { COUNTRIES, CORRIDORS, country } from "./corridors";
+import { CORRIDORS, country, countryFromPhone } from "./corridors";
+export { countryFromPhone };
 import { hmac, safeEqual } from "./security";
 import type { AssistantReply, Draft } from "./intent";
 
@@ -10,12 +11,6 @@ import type { AssistantReply, Draft } from "./intent";
 
 export const WHATSAPP_SECRET = process.env.SOKO_WHATSAPP_SECRET || "dev-only-whatsapp-secret";
 const LINK_TTL_MS = 30 * 60 * 1000;
-
-export function countryFromPhone(phone: string): string | undefined {
-  const p = phone.replace(/[^\d+]/g, "");
-  const withPlus = p.startsWith("+") ? p : "+" + p;
-  return COUNTRIES.slice().sort((a, b) => b.dial.length - a.dial.length).find((c) => withPlus.startsWith(c.dial))?.code;
-}
 
 /** Signed, expiring token carrying only the draft (no payment data, no authorization). */
 export function signDraftLink(draft: Draft, from: string): string {

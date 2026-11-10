@@ -1,22 +1,25 @@
-import crypto from "node:crypto";
-import { db, commit } from "@/lib/store";
+import { NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
 import { body, fail, ok } from "@/lib/http";
 import { normalizePhone } from "@/lib/corridors";
 import { velocityOk } from "@/lib/security";
+import { otpChannel, takeAutofillCode } from "@/lib/otp-delivery";
 
-// Sandbox OTP: no SMS provider is connected, so the code is returned to the client
-// and labelled as a demo code. Replace with an SMS/WhatsApp OTP provider for production.
+// Step 1 of phone sign-in: validate the number for its country, then ask Better Auth to issue a code.
+// Better Auth stores the code in Postgres (`verification`) and calls our delivery hook (WhatsApp or autofill).
 export async function POST(req: Request) {
   try {
     const b = await body<{ phone: string; country: string }>(req);
     const n = normalizePhone(b.phone ?? "", b.country ?? "");
     if (!n.ok) return ok({ error: n.error, fieldErrors: { phone: n.error } }, 422);
     if (!velocityOk("otp:" + n.e164, 5, 10 * 60_000)) return ok({ error: "Too many codes requested. Try again in a few minutes." }, 429);
-    const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, "0");
-    const s = db();
-    s.otps = s.otps.filter((o) => o.phone !== n.e164);
-    s.otps.push({ phone: n.e164, code, expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(), attempts: 0 });
-    commit();
-    return ok({ phone: n.e164, autofillCode: code, expiresInSeconds: 300 });
+    try {
+      await auth.api.sendPhoneNumberOTP({ body: { phoneNumber: n.e164 }, headers: req.headers });
+    } catch (e) {
+      console.error("send-otp failed", e);
+      return NextResponse.json({ error: "We couldn't send your code. Please try again." }, { status: 502 });
+    }
+    const channel = otpChannel();
+    return ok({ phone: n.e164, channel, autofillCode: takeAutofillCode(n.e164), expiresInSeconds: 300 });
   } catch (e) { return fail(e); }
 }

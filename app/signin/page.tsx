@@ -17,6 +17,7 @@ function SignIn() {
   const [phone, setPhone] = useState("");
   const [e164, setE164] = useState("");
   const [autoCode, setAutoCode] = useState("");
+  const [channel, setChannel] = useState<"whatsapp" | "autofill">("autofill");
   const [code, setCode] = useState(["", "", "", "", "", ""]);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -44,8 +45,8 @@ function SignIn() {
     ev?.preventDefault();
     setBusy(true); setErr(null);
     try {
-      const r = await api<{ phone: string; autofillCode: string }>("/api/auth/otp", { method: "POST", json: { phone: c.dial + phone.replace(/^0/, ""), country: countryCode } });
-      setE164(r.phone); setAutoCode(r.autofillCode); setCooldown(30); setCode(["", "", "", "", "", ""]);
+      const r = await api<{ phone: string; autofillCode?: string; channel: "whatsapp" | "autofill" }>("/api/auth/otp", { method: "POST", json: { phone: c.dial + phone.replace(/^0/, ""), country: countryCode } });
+      setE164(r.phone); setChannel(r.channel); setAutoCode(r.autofillCode ?? ""); setCooldown(30); setCode(["", "", "", "", "", ""]);
       setTimeout(() => refs.current[0]?.focus(), 100);
     } catch (e) { setErr((e as ApiError).message); } finally { setBusy(false); }
   }
@@ -86,7 +87,7 @@ function SignIn() {
             {!e164 ? (
               <motion.form key="phone" onSubmit={requestCode} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -16 }}>
                 <h1 className="display text-[34px] leading-tight">Let's get you <span className="serif-accent text-gradient-coral">set up.</span></h1>
-                <p className="mt-2 text-ink-2">We'll send a one-time code to confirm it's you. Your transfer details are kept while you sign in.</p>
+                <p className="mt-2 text-ink-2">We'll send a one-time code to your WhatsApp to confirm it's you. Your transfer details are kept while you sign in.</p>
                 <div className="mt-8 space-y-4">
                   <Field id="country" label="Country">
                     <div className="relative">
@@ -110,7 +111,7 @@ function SignIn() {
             ) : (
               <motion.div key="otp" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -16 }}>
                 <h1 className="display text-[34px] leading-tight">Enter the <span className="serif-accent text-gradient-coral">code</span></h1>
-                <p className="mt-2 text-ink-2">Sent to <span className="tabular text-ink">{e164}</span>.</p>
+                <p className="mt-2 text-ink-2">{channel === "whatsapp" ? "We sent it to WhatsApp on " : "Sent to "}<span className="tabular text-ink">{e164}</span>.</p>
                 <div className="mt-6 flex justify-between gap-2" role="group" aria-label="One-time code">
                   {code.map((v, i) => (
                     <input key={i} ref={(el) => { refs.current[i] = el; }} value={v} inputMode="numeric" autoComplete={i === 0 ? "one-time-code" : "off"} maxLength={6}

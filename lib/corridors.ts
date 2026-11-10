@@ -100,3 +100,9 @@ export function mask(id: string): string {
   if (id.length <= 4) return "••••";
   return id.slice(0, Math.min(4, id.length - 4)) + " •••• " + id.slice(-4);
 }
+
+/** Country for an E.164 number, by longest matching dial code. */
+export function countryFromPhone(phone: string): string | undefined {
+  const p = "+" + phone.replace(/\D/g, "");
+  return COUNTRIES.slice().sort((a, b) => b.dial.length - a.dial.length).find((c) => p.startsWith(c.dial))?.code;
+}

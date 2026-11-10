@@ -26,7 +26,7 @@ export default function Profile() {
         <div className="relative flex items-center gap-4">
           <span className="grid h-16 w-16 place-items-center rounded-2xl bg-white/15 text-2xl font-bold backdrop-blur">{u.phone.slice(-2)}</span>
           <div>
-            <div className="display tabular text-xl">{u.phone.replace(/(\+\d{3})(\d+)(\d{3})/, (_, a, b, d) => `${a} ${"•".repeat(b.length)} ${d}`)}</div>
+            <div className="display tabular text-xl">{c ? `${c.dial} ${"•".repeat(Math.max(0, u.phone.length - c.dial.length - 3))} ${u.phone.slice(-3)}` : u.phone}</div>
             <div className="mt-1 flex items-center gap-2 text-sm text-ink-2">{c && <Flag code={c.code} size={16} />} {c?.name} · since {new Date(u.createdAt).toLocaleDateString(undefined, { month: "short", year: "numeric" })}</div>
           </div>
         </div>

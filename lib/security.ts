@@ -1,7 +1,9 @@
 import "server-only";
 import crypto from "node:crypto";
-import { cookies } from "next/headers";
-import { db } from "./store";
+import { headers } from "next/headers";
+import { commit, db } from "./store";
+import { auth } from "./auth";
+import { countryFromPhone } from "./corridors";
 import type { User } from "./types";
 
 const SECRET = process.env.SOKO_SIGNING_SECRET || "dev-only-signing-secret-change-me";
@@ -16,31 +18,20 @@ export function safeEqual(a: string, b: string) {
   return x.length === y.length && crypto.timingSafeEqual(x, y);
 }
 
-// ── Sessions ───────────────────────────────────────────────────────────
-const COOKIE = "soko_session";
-
-export function sessionValue(userId: string) {
-  const exp = Date.now() + 1000 * 60 * 60 * 12;
-  const body = `${userId}.${exp}`;
-  return `${body}.${hmac(body)}`;
-}
-
+// ── Sessions (Better Auth, stored in Neon Postgres) ─────────────────
+/** The signed-in user, from the Better Auth session cookie. Mirrors a minimal row into the app store. */
 export async function currentUser(): Promise<User | null> {
-  const raw = (await cookies()).get(COOKIE)?.value;
-  if (!raw) return null;
-  const parts = raw.split(".");
-  if (parts.length !== 3) return null;
-  const [id, exp, sig] = parts;
-  if (!safeEqual(sig, hmac(`${id}.${exp}`)) || Number(exp) < Date.now()) return null;
-  return db().users.find((u) => u.id === id) ?? null;
-}
-
-export async function setSession(userId: string) {
-  (await cookies()).set(COOKIE, sessionValue(userId), { httpOnly: true, sameSite: "lax", path: "/", secure: process.env.NODE_ENV === "production", maxAge: 60 * 60 * 12 });
-}
-
-export async function clearSession() {
-  (await cookies()).delete(COOKIE);
+  const session = await auth.api.getSession({ headers: await headers() }).catch(() => null);
+  const u = session?.user as ({ id: string; phoneNumber?: string | null; createdAt: Date | string } & Record<string, unknown>) | undefined;
+  if (!u?.phoneNumber) return null;
+  const store = db();
+  let row = store.users.find((x) => x.id === u.id);
+  if (!row) {
+    row = { id: u.id, phone: u.phoneNumber, country: countryFromPhone(u.phoneNumber) ?? "NG", verificationStatus: "PHONE_VERIFIED", createdAt: new Date(u.createdAt).toISOString() };
+    store.users.push(row);
+    commit();
+  }
+  return row;
 }
 
 // ── Authorization tokens: bound to exact quote + recipient + amount ───

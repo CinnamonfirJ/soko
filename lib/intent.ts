@@ -45,7 +45,7 @@ const CURRENCY_WORDS: [RegExp, CurrencyCode | "USD"][] = [
   [/\b(ghs|cedis?|gh₵)/i, "GHS"],
   [/\b(kes|ksh|kenyan shillings?)/i, "KES"],
   [/\b(ugx|ugandan shillings?)/i, "UGX"],
-  [/\b(zar|rands?)/i, "ZAR"],
+  [/\b(zar|rands?)\b|\bR\s?\d/i, "ZAR"],
   [/\b(tzs|tanzanian shillings?)/i, "TZS"],
 ];
 
@@ -108,10 +108,20 @@ const LlmSchema = z.object({
   ambiguity: z.string().nullable().describe("A single short clarifying question if something is ambiguous, else null"),
 });
 
+/** Neon AI Gateway (branch-scoped, Anthropic Messages dialect) when provisioned; else a direct Anthropic key. */
+function llmClient(): Anthropic | null {
+  const base = process.env.NEON_AI_GATEWAY_BASE_URL, token = process.env.NEON_AI_GATEWAY_TOKEN;
+  if (base && token) return new Anthropic({ apiKey: token, baseURL: `${base.replace(/\/$/, "")}/anthropic`, maxRetries: 0, timeout: 20_000 });
+  if (process.env.ANTHROPIC_API_KEY) return new Anthropic({ timeout: 20_000 });
+  return null;
+}
+
+let llmUnavailableUntil = 0; // back off after a gateway refusal (e.g. no credits) instead of retrying every message
+
 async function llmExtract(text: string, prev: Draft) {
-  if (!process.env.ANTHROPIC_API_KEY) return null;
+  const client = llmClient();
+  if (!client || Date.now() < llmUnavailableUntil) return null;
   try {
-    const client = new Anthropic();
     const res = await client.messages.parse({
       model: "claude-opus-5-5",
       max_tokens: 2000,
@@ -124,7 +134,13 @@ async function llmExtract(text: string, prev: Draft) {
     });
     if (res.stop_reason === "refusal" || !res.parsed_output) return null;
     return res.parsed_output;
-  } catch {
+  } catch (e) {
+    if (e instanceof Anthropic.APIError && (e.status === 401 || e.status === 403)) {
+      console.warn(`AI Gateway unavailable (${e.status}): ${e.message.slice(0, 160)}. Using rules parser for 5 minutes.`);
+      llmUnavailableUntil = Date.now() + 5 * 60_000;
+    } else {
+      console.warn("LLM extraction failed; using rules parser.", e instanceof Error ? e.message.slice(0, 160) : e);
+    }
     return null; // fall back to deterministic rules
   }
 }

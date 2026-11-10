@@ -113,29 +113,42 @@ lib/
   security.ts              signed sessions, authorization tokens, webhook signatures, rate limits
   intent.ts                natural language → transfer draft (Claude structured output, rules fallback)
   whatsapp.ts              WhatsApp replies, signed draft links, sender country detection
-  store.ts                 persistence layer
+  db.ts                    Neon Postgres pool (node-postgres, pooled URL)
+  auth.ts                  Better Auth with phone-number sign-up
+  otp-delivery.ts          sign-in codes via WhatsApp (WATI) or on-screen autofill
+  store.ts                 transfer data store
 ```
 
 **Stack:** Next.js 15, React 19, TypeScript, Tailwind CSS 4, Framer Motion, Lucide, Anthropic SDK (Claude) for intent extraction, USDT (Tether) settlement rail, n8n + WhatsApp Business for the chat channel.
 
 ## Run locally
 
+SokoBot runs on **Neon**: Lakebase Postgres for accounts and sessions, and the Neon AI Gateway for Soko Assistant.
+
 ```bash
 npm install
-cp .env.example .env.local   # set your secrets
+neon login                   # once
+neon deploy                  # applies neon.ts and writes DATABASE_URL + NEON_AI_GATEWAY_* into .env
+npm run db:migrate           # creates the auth tables in Neon Postgres
 npm run build && npm start   # http://localhost:3000
 ```
+
+**Phone sign-in** uses Better Auth's phone-number plugin inside the app, with users and sessions stored in Neon Postgres. People sign up with just their phone number: enter the number, then the 6-digit code. Codes go out on WhatsApp through WATI when `WATI_API_URL` and an approved Authentication template (`SOKO_WATI_OTP_TEMPLATE`) are set; otherwise the code fills in on screen automatically.
 
 `npm run dev` also works for development.
 
 | Variable | Purpose |
 |---|---|
-| `SOKO_SIGNING_SECRET` | Signs sessions and payment authorizations |
+| `DATABASE_URL`, `DATABASE_URL_UNPOOLED` | Neon Postgres (pooled for the app, direct for migrations), written by `neon deploy` |
+| `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` | Phone sign-in sessions |
+| `WATI_API_KEY`, `WATI_API_URL`, `SOKO_WATI_OTP_TEMPLATE` | Sign-in codes over WhatsApp |
+| `NEON_AI_GATEWAY_BASE_URL`, `NEON_AI_GATEWAY_TOKEN` | Neon AI Gateway for Soko Assistant, written by `neon deploy` |
+| `SOKO_SIGNING_SECRET` | Signs payment authorizations |
 | `SOKO_WEBHOOK_SECRET` | Verifies payment provider webhooks |
 | `SOKO_OPS_KEY` | Access key for the operations console |
 | `SOKO_WHATSAPP_SECRET` | Shared secret the WhatsApp orchestrator (n8n) sends with each inbound message |
 | `SOKO_PUBLIC_URL` | Public base URL used in links sent over WhatsApp |
-| `ANTHROPIC_API_KEY` | Optional. Enables Claude-powered intent extraction in Soko Assistant |
+| `ANTHROPIC_API_KEY` | Optional. Direct Anthropic key, used only when the Neon AI Gateway isn't configured |
 
 ## Design
 
